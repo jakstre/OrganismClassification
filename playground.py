@@ -1,5 +1,6 @@
 import fastaParser
 import features
+import numpy as np
 
 # return set of lengths of given lists
 def lengthSet(sequences):
@@ -21,29 +22,39 @@ def nonBaseCharCount(sequences):
                     d[s]+=1
     return d
 
-seq = 'acgtncgt'
-print ("Feature test: triplets - ", seq)
-print (features.tripletsHist(seq))
-print ("Feature test: pairs - ", seq)
-print (features.pairHist(seq))
+seq = 'acacac'
+print (seq[:-1])
+
+print (seq)
+f = features.fourier(seq,4)
+print (features.fourier(seq,4))
+
+print (np.fft.rfftfreq(len(seq)))
+#print ("Feature test: triplets - ", seq)
+#print (features.tripletsHist(seq))
+#print ("Feature test: pairs - ", seq)
+#print (features.pairHist(seq))
 
 with open('current_Fungi_unaligned.fa') as fp:
     namesSeqMap = fastaParser.getNamesSeqSet(fp)
     print ("Parsed:", len(namesSeqMap), "species")
 
     sortedBySeqCount = sorted(namesSeqMap.items(), key=lambda x: len(x[1]), reverse = True)
-    n  = 30
+    n  = 10
     print (n,"species containing most unique sequences:")
 
     i = 0
     for pair in sortedBySeqCount:
         print(pair[0], len(pair[1]))
+        print (max(lengthSet(pair[1])))
+        print (min(lengthSet(pair[1])))
         i+=1
         if i==n:
             break
 
 
    
+    # stats for single species
     species = sortedBySeqCount[40]
     strangeChars = nonBaseCharCount(species[1])
     print ("Incomplete bases characters:")
@@ -51,8 +62,12 @@ with open('current_Fungi_unaligned.fa') as fp:
 
     lengths = lengthSet(species[1])
     print (len(lengths))
-    print(lengths)
+    #print(lengths)
 
+    species = sortedBySeqCount[50]
+    lengths = lengthSet(species[1])
+    print (len(lengths))
+    #print(lengths)
 """
     trigrams = []
     i =0

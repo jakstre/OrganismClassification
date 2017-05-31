@@ -1,5 +1,6 @@
 import numpy as np
-
+import os
+import fastaParser
 
 basesMap = { 'w':'a',
              's':'c',
@@ -14,6 +15,18 @@ basesMap = { 'w':'a',
              'n':'a'}
 
 bases = ['a', 't', 'g', 'c']
+
+basesNumerical = { 'a': 0.0,
+                   't': 0.25,
+                   'g': 0.5,
+                   'c': 1.0}
+
+def baseToNumber(base):
+    x = base
+    if base not in bases:
+        x = basesMap[base]
+    return basesNumerical[x];
+
 
 def emptyPairs():
     d = {}
@@ -104,3 +117,84 @@ def tripletsHist(sequence):
         triplets[key]/=l-2
 #     return triplets
     return np.asarray(list(triplets.values()))
+
+
+def fourier(sequence, n=50):
+    seq = np.array(list(map(baseToNumber, sequence)))
+    freq = np.fft.rfft(seq)
+    freqSlice = freq[:n]#freq[-n:]
+    # concatenate real and imaginary parts to single vector
+    return np.append(freqSlice[:].real,freqSlice[:].imag)
+     
+
+
+
+def oneHot(names):
+    d = {}
+    i = 0
+    for name in names:
+        code = np.zeros(len(names), dtype = np.float32)
+        code[i] = 1.0
+        d[name] = code
+        i+=1
+    return d
+
+def integerCode(names):
+    d = {}
+    i = 0
+    for name in names:
+        d[name] = i#np.array([i],dtype = np.float32)
+        i+=1
+    return d
+
+dataDir = "./data"
+
+def prepareData(featureExtractor, save = True, fastaName = 'current_Fungi_unaligned.fa', numSpecies = 10):
+    data = []
+    labels = []
+    labelsOneHot = []
+    
+    if not os.path.exists(dataDir):
+        os.makedirs(dataDir)
+
+    with open(fastaName) as fp:
+        namesSeqMap = fastaParser.getNamesSeqSet(fp)
+        print ("Parsed:", len(namesSeqMap), "species")
+
+        sortedBySeqCount = sorted(namesSeqMap.items(), key=lambda x: len(x[1]), reverse = True)
+
+        print(list(pair[0] for pair in sortedBySeqCount[0:numSpecies]))
+
+        #codes = None
+        #if oneHot:
+        #    codes = oneHot(list(pair[0] for pair in sortedBySeqCount[0:numSpecies]))
+        #else:
+        #    codes = integerCode(list(pair[0] for pair in sortedBySeqCount[0:numSpecies]))
+
+        intCodes  = integerCode(list(pair[0] for pair in sortedBySeqCount[0:numSpecies]))
+        oneHotCodes =  oneHot(list(pair[0] for pair in sortedBySeqCount[0:numSpecies]))
+
+        i = 0
+        for pair in sortedBySeqCount:
+            for seq in pair[1]:
+                data.append(featureExtractor(seq))
+                labels.append(intCodes[pair[0]])
+                labelsOneHot.append(oneHotCodes[pair[0]])
+            i+=1
+            if i==numSpecies:
+                break
+
+    d = np.asarray(data)
+    l = np.asarray(labels)
+    loh = np.asarray(labelsOneHot)
+    if save:
+        np.save(dataDir + "/x.npy",d)
+        np.save(dataDir + "/y.npy",l)
+        np.save(dataDir + "/yoh.npy",loh)
+    return d,l, loh
+
+def loadData():
+    data = np.load(dataDir + "/x.npy")
+    labels = np.load(dataDir + "/y.npy")
+    labelsOneHot = np.load(dataDir + "/yoh.npy")
+    return data, labels, labelsOneHot
