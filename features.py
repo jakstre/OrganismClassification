@@ -119,7 +119,7 @@ def tripletsHist(sequence):
     return np.asarray(list(triplets.values()))
 
 
-def fourier(sequence, n=50):
+def fourier(sequence, n=100):
     seq = np.array(list(map(baseToNumber, sequence)))
     freq = np.fft.rfft(seq)
     freqSlice = freq[:n]#freq[-n:]

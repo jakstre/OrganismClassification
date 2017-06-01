@@ -2,6 +2,8 @@ import tensorflow as tf
 import numpy as np
 import os
 
+optDir = "./opts"
+
 class Link(object):
     def __init__(self):
         super(Link, self).__init__()
@@ -25,7 +27,7 @@ class Linear(Link):
                                             tf.random_normal([nInput, nUnits])))
 
        
-        self.biases = tf.Variable(tf.zeros([1]))
+        self.biases = tf.Variable(tf.zeros([1])) #tf.Variable(tf.zeros([nUnits]))
         
 
         self.params = [self.weights, self.biases]
@@ -48,6 +50,7 @@ class MLP(Link):
         # tf Graph input/output
         self.input = tf.placeholder("float", [None, layerSizes[0]])
         self.target = tf.placeholder("float", [None, layerSizes[-1]])
+        self.keepProb = tf.placeholder(tf.float32)
 
         self.layers = []
         self.params = []
@@ -58,96 +61,90 @@ class MLP(Link):
             self.params.extend(self.layers[i].getParams())
         
         self.output = self.compute(self.input)
+        self.context = None
 
     def compute(self,x):
         h = x
         for l in self.layers[:-1]:
-            h = tf.nn.relu(l(h))
-
+            h = tf.nn.dropout(tf.nn.elu(l(h)), self.keepProb) 
         h = self.layers[-1](h)
         return h
         
-        #a1 = tf.nn.relu(self.layers[0](x))
-        #return self.layers[1](a1)
-        #a1 = tf.nn.relu(self.layer1(x))
-        #return self.layer2(a1)
-
     def getParams(self):
         return self.params
 
+    # return best recorded score on test set
+    def fit(self, xTrain,yTrain,xTest,yTest, verbose = True, save = True, batchSize = 200, numEpochs=1000, alpha= 0.0001, dropoutRatio = 0.1):
 
+        if self.context == None:
+            self.context = tfContext(self,alpha)
 
+        if not os.path.exists(optDir):
+            os.makedirs(optDir)
 
+        batchX = np.zeros([batchSize, xTrain.shape[1]],dtype = np.float32)
+        batchY = np.zeros([batchSize, yTrain.shape[1]],dtype = np.float32)
 
+        bestAccuracy = 0.0
+        numWithoutImproving = 0
+        with tf.Session() as sess:
+            sess.run(self.context.init)
+            for i in range(numEpochs):
+                for _ in range(xTrain.shape[0]//batchSize):
+                    for j in range(batchSize):
+                        # TODO shuffling would be perhaps better
+                        index  = np.random.randint(xTrain.shape[0])
+                        batchX[j] = xTrain[index]
+                        batchY[j] = yTrain[index] 
 
+                    _, c= sess.run([self.context.optimizer, self.context.loss], feed_dict={self.input: batchX,self.target: batchY , self.keepProb: 1-dropoutRatio})
+                    #print(c/batchSize)
 
-optDir = "./opts"
+                valAccuracy = self.context.accuracy.eval({self.input:xTest, self.target:yTest, self.keepProb: 1.0})
+                if verbose:
+                    print("Epoch:", i, "validation accuracy:", valAccuracy)
+                if valAccuracy>bestAccuracy:
+                    bestAccuracy = valAccuracy
+                    numWithoutImproving = 0
+                    if save:
+                        _ = self.context.saver.save(sess, optDir + "/best.ckpt")
+                else:
+                    numWithoutImproving+=1
 
-def NNfit(net,xTrain,yTrain,xTest,yTest, batchSize = 64, numEpochs=1000, alpha= 0.0001):
+                if numWithoutImproving > 40:
+                    break
+        if verbose:
+            print ("Done, best accuracy:",bestAccuracy)
+        return bestAccuracy
 
-    if not os.path.exists(optDir):
-        os.makedirs(optDir)
-
-    batchX = np.zeros([batchSize, xTrain.shape[1]],dtype = np.float32)
-    batchY = np.zeros([batchSize, yTrain.shape[1]],dtype = np.float32)
-
-    loss =  tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits = net.output, labels = net.target))
-    optimizer = tf.train.MomentumOptimizer(learning_rate=alpha, momentum =0.8).minimize(loss)
-    #optimizer =tf.train.AdamOptimizer(0.1).minimize(loss)
-
-    correctPrediction = tf.equal(tf.argmax(net.output, 1), tf.argmax(net.target, 1))
-    accuracy = tf.reduce_mean(tf.cast(correctPrediction, "float"))
-
-    bestAccuracy = 0.0
-    numWithoutImproving = 0
-
-    init = tf.global_variables_initializer()
-
-    saver = tf.train.Saver()
-    #tf.get_default_graph().finalize() 
+    def test(self,xTest,yTest, load = False):
     
+        with tf.Session() as sess:
+            if load:
+                self.context.saver.restore(sess, optDir + "/best.ckpt")
+            acc = self.context.accuracy.eval({self.input:xTest, self.target:yTest, self.keepProb: 1.0})
+            #print("Accuracy:", accuracy)
 
-    with tf.Session() as sess:
-        sess.run(init)
-        valAccuracy = accuracy.eval({net.input:xTest, net.target:yTest})
-        print("Epoch:", -1, "validation accuracy:", valAccuracy)
-        for i in range(numEpochs):
-            for _ in range(xTrain.shape[0]//batchSize):
-                for j in range(batchSize):
-                    # TODO shuffling would be perhaps better
-                    index  = np.random.randint(xTrain.shape[0])
-                    batchX[j] = xTrain[index]
-                    batchY[j] = yTrain[index] 
+        return acc
 
-                _, c= sess.run([optimizer, loss], feed_dict={net.input: batchX,net.target: batchY})
-                #print(c/batchSize)
+    # TODO dont start new session each time
+    #def load(self, file = optDir + "/best.ckpt"):
+    #    with tf.Session() as sess:
+    #        self.context.saver.restore(sess, file)
 
-            valAccuracy = accuracy.eval({net.input:xTest, net.target:yTest})
-            print("Epoch:", i, "validation accuracy:", valAccuracy)
-            if valAccuracy>bestAccuracy:
-                bestAccuracy = valAccuracy
-                numWithoutImproving = 0
-                _ = saver.save(sess, optDir + "/best.ckpt")
-            else:
-                numWithoutImproving+=1
+class tfContext(object):
+    def __init__(self,net,alpha):
+        super(tfContext, self).__init__()
+        self.loss =  tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits = net.output, labels = net.target))
+        #optimizer = tf.train.MomentumOptimizer(learning_rate=alpha, momentum =0.8).minimize(loss)
+        self.optimizer =tf.train.AdamOptimizer(learning_rate = alpha).minimize(self.loss)
+        #optimizer =tf.train.AdagradOptimizer(learning_rate = alpha).minimize(loss) 
+        #optimizer =tf.train.RMSPropOptimizer(learning_rate=alpha).minimize(loss)
+        self.correctPrediction = tf.equal(tf.argmax(net.output, 1), tf.argmax(net.target, 1))
+        self.accuracy = tf.reduce_mean(tf.cast(self.correctPrediction, "float"))
+        self.init = tf.global_variables_initializer()
+        self.saver = tf.train.Saver()
 
-            if numWithoutImproving > 25:
-                break
- 
-    return
-
-def NNtest(net,xTest,yTest):
-    
-    correctPrediction = tf.equal(tf.argmax(net.output, 1), tf.argmax(net.target, 1))
-    accuracy = tf.reduce_mean(tf.cast(correctPrediction, "float"))
-    saver = tf.train.Saver()
-    with tf.Session() as sess:
-        saver.restore(sess, optDir + "/best.ckpt")
-        acc=  accuracy.eval({net.input:xTest, net.target:yTest})
-        #print("Accuracy:", accuracy)
-
-    return acc
+        tf.get_default_graph().finalize()
 
     
-
-
