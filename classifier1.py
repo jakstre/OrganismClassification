@@ -11,8 +11,9 @@ from sklearn.ensemble import RandomForestClassifier
 
 import features
 
-loadDataFromFile = True
+loadDataFromFile = False
 runOnlyNN = False
+
 
 def fprint(*output):
 
@@ -31,8 +32,10 @@ def run():
     labelsOneHot = None
     if (loadDataFromFile):
         data, labels, labelsOneHot = features.loadData()
+        print "features were loaded"
     else:
-        data, labels, labelsOneHot = features.prepareData(features.fourier)
+        data, labels, labelsOneHot = features.prepareData(features.get_features)
+        print "features were prepared"
     print(data.shape, labels.shape, labelsOneHot.shape)
     #xTrain, xTest, yTrain, yTest = train_test_split(data, labels, test_size=0.33, random_state=42, stratify = labels)
     #_,_,yTrainOneHot, yTestOneHot = train_test_split(data, labelsOneHot, test_size=0.33, random_state=42, stratify = labels)
@@ -46,7 +49,6 @@ def run():
     
     scores = []
     classifier = nn.MLP([data.shape[1], 1000, labelsOneHot.shape[1]])
-
     for trainIndex, testIndex in skf.split(data , labels):
         xTrain, xTest = data[trainIndex], data[testIndex]
         yTrainOneHot, yTestOneHot = labelsOneHot[trainIndex], labelsOneHot[testIndex]
