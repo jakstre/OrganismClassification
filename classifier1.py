@@ -35,6 +35,10 @@ def run():
         print "features were loaded"
     else:
         data, labels, labelsOneHot = features.prepareData(features.get_features)
+        # data, labels, labelsOneHot = features.prepareData(features.get_features, numSpecies=10,
+        #                                                   fastaName='current_Archaea_unaligned.fa')
+        # data, labels, labelsOneHot = features.prepareData(features.get_features, numSpecies=10,
+        #                                                   fastaName='current_Bacteria_unaligned.fa')
         print "features were prepared"
     print(data.shape, labels.shape, labelsOneHot.shape)
     #xTrain, xTest, yTrain, yTest = train_test_split(data, labels, test_size=0.33, random_state=42, stratify = labels)
@@ -52,7 +56,7 @@ def run():
     for trainIndex, testIndex in skf.split(data , labels):
         xTrain, xTest = data[trainIndex], data[testIndex]
         yTrainOneHot, yTestOneHot = labelsOneHot[trainIndex], labelsOneHot[testIndex]
-        score = classifier.fit(xTrain, yTrainOneHot, xTest, yTestOneHot, save = False, verbose = False) 
+        score = classifier.fit(xTrain, yTrainOneHot, xTest, yTestOneHot, save = False, verbose = False)
         print (score)
         scores.append(score)
     fprint ("Neural network score mean: " , np.mean(scores))

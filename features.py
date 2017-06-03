@@ -1,6 +1,11 @@
 import numpy as np
 import os
 import fastaParser
+from scipy import signal
+import matplotlib.pyplot as plt
+from scipy.misc import imresize
+import pywt
+
 
 basesMap = {'w': 'a',
             's': 'c',
@@ -33,6 +38,7 @@ def get_features(sequence):
     # feats = np.hstack((feats, singlet_transitions(sequence)))
     # feats = np.hstack((feats, doublet_transitions(sequence)))
     feats = np.hstack((feats, triplet_transitions(sequence)))
+    feats = np.hstack((feats, wavelet(sequence)))
 
     return feats
 
@@ -245,6 +251,17 @@ def tripletsHist(sequence):
     return np.asarray(list(triplets.values()))
 
 
+def wavelet(sequence, n=40):
+    seq = np.array(list(map(baseToNumber, sequence)))
+    a, b = pywt.dwt(seq, 'rbio1.3')
+    freq_slice_a = a[:n]
+    freq_slice_b = b[:n]
+    # plt.plot(a)
+    # plt.show()
+    # exit()
+    return np.append(freq_slice_a, freq_slice_b)
+
+
 def fourier(sequence, n=100):
     seq = np.array(list(map(baseToNumber, sequence)))
     freq = np.fft.rfft(seq)
@@ -289,9 +306,12 @@ def prepareData(featureExtractor, save=True, fastaName='current_Fungi_unaligned.
         print ("Parsed:", len(namesSeqMap), "species")
 
         sortedBySeqCount = sorted(namesSeqMap.items(), key=lambda x: len(x[1]), reverse=True)
-        sortedBySeqCount = filter(lambda x: "uncultured" not in x[0], sortedBySeqCount)
+        # sortedBySeqCount = filter(lambda x: "uncultured" not in x[0], sortedBySeqCount)
 
-        print(list(pair[0] for pair in sortedBySeqCount[0:numSpecies]))
+        print 'Taking', numSpecies, 'species with most sequences:'
+        print(list([pair[0], len(pair[1])] for pair in sortedBySeqCount[0:numSpecies]))
+        print 'Working with',\
+            np.sum(list(len(pair[1]) for pair in sortedBySeqCount[0:numSpecies])), 'sequences in total'
 
         # codes = None
         # if oneHot:
