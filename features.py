@@ -4,6 +4,7 @@ import fastaParser
 from scipy import signal
 import matplotlib.pyplot as plt
 from scipy.misc import imresize
+from scipy.stats import moment
 import pywt
 
 
@@ -39,6 +40,7 @@ def get_features(sequence):
     # feats = np.hstack((feats, doublet_transitions(sequence)))
     feats = np.hstack((feats, triplet_transitions(sequence)))
     feats = np.hstack((feats, wavelet(sequence)))
+    # feats = np.hstack((feats, moments(sequence)))
 
     return feats
 
@@ -55,6 +57,15 @@ def to_pure_atgc(sequence):
         else:
             pure_sequence += c
     return pure_sequence
+
+
+def moments(sequence, n=20):
+    seq = np.array(list(map(baseToNumber, sequence)))
+    lis = []
+    for i in range(n):
+        lis = np.append(lis, moment(seq, moment=i))
+
+    return np.asarray(lis)
 
 
 def triplet_transitions(sequence):
@@ -81,9 +92,9 @@ def triplet_transitions(sequence):
 
     for i in range(mat.shape[0]):
         # The correct way
-        # divisor = hits[i]
+        divisor = hits[i]
         # Totally wrong, but works better!
-        divisor = seq_len
+        # divisor = seq_len - 3
         if divisor == 0:
             continue
         for j in range(mat.shape[1]):
@@ -114,9 +125,9 @@ def doublet_transitions(sequence):
 
     for i in range(mat.shape[0]):
         # The correct way
-        # divisor = hits[i]
+        divisor = hits[i]
         # Totally wrong, but works better!
-        divisor = seq_len
+        # divisor = seq_len - 2
         if divisor == 0:
             continue
         for j in range(mat.shape[1]):
@@ -145,9 +156,9 @@ def singlet_transitions(sequence):
 
     for i in range(mat.shape[0]):
         # The correct way
-        # divisor = hits[i]
+        divisor = hits[i]
         # Totally wrong, but works better!
-        divisor = seq_len
+        # divisor = seq_len - 1
         if divisor == 0:
             continue
         for j in range(mat.shape[1]):
@@ -251,7 +262,7 @@ def tripletsHist(sequence):
     return np.asarray(list(triplets.values()))
 
 
-def wavelet(sequence, n=40):
+def wavelet(sequence, n=10):
     seq = np.array(list(map(baseToNumber, sequence)))
     a, b = pywt.dwt(seq, 'rbio1.3')
     freq_slice_a = a[:n]
@@ -293,7 +304,7 @@ def integerCode(names):
 dataDir = "./data"
 
 
-def prepareData(featureExtractor, save=True, fastaName='current_Fungi_unaligned.fa', numSpecies=40):
+def prepareData(featureExtractor, save=True, fastaName='current_Fungi_unaligned.fa', numSpecies=10):
     data = []
     labels = []
     labelsOneHot = []
